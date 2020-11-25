@@ -69,7 +69,7 @@ var expression = "not Id eq 1";
 
 ### Usage
 ```csharp
-var expression = "Id eq 1";
+var expression = "(length(Title) gt 5 and contains(Title, 'tle')) or Id in (3,5)";
 // Parse a filtering function
 Expression<Func<Item, bool>> predicateExpression = FilterParser.Parse<Item>(expression);
 // Compile a filtering function
