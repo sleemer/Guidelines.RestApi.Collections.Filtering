@@ -28,10 +28,10 @@ namespace Guidelines.RestApi.Collections.Filtering
             public static TokenListParser<FilterExpressionToken, Expression> In(Expression obj) =>
                 from prop in Property(obj)
                 from contains in Token.EqualTo(FilterExpressionToken.In)
-                from list in Constant
+                from list in Constant(prop.IsNullOrNullable())
                 select (Expression)Expression.Call(
-                    list, 
-                    list.Type.GetMethod("Contains") ?? throw new InvalidOperationException($"Method Contains not found for type {list.Type}."), 
+                    list,
+                    list.Type.GetMethod("Contains") ?? throw new InvalidOperationException($"Method Contains not found for type {list.Type}."),
                     prop);
         }
 
@@ -56,23 +56,29 @@ namespace Guidelines.RestApi.Collections.Filtering
                     .AtLeastOnceDelimitedBy(Token.EqualTo(FilterExpressionToken.Comma))
                     .Select(strings => Expression.Constant(new List<string>(strings), typeof(List<string>)));
 
-            public static TokenListParser<FilterExpressionToken, ConstantExpression> Integers =
+            public static TokenListParser<FilterExpressionToken, ConstantExpression> Integers(bool nullable = false) =>
                 Token.EqualTo(FilterExpressionToken.Integer)
                     .Apply(Numerics.IntegerInt32)
                     .AtLeastOnceDelimitedBy(Token.EqualTo(FilterExpressionToken.Comma))
-                    .Select(nums => Expression.Constant(new List<int>(nums), typeof(List<int>)));
+                    .Select(nums => nullable
+                        ? Expression.Constant(new List<int?>(nums.Cast<int?>()), typeof(List<int?>))
+                        : Expression.Constant(new List<int>(nums), typeof(List<int>)));
 
-            public static TokenListParser<FilterExpressionToken, ConstantExpression> Decimals =
+            public static TokenListParser<FilterExpressionToken, ConstantExpression> Decimals(bool nullable = false) =>
                 Token.EqualTo(FilterExpressionToken.Decimal)
                     .Apply(Numerics.DecimalDecimal)
                     .AtLeastOnceDelimitedBy(Token.EqualTo(FilterExpressionToken.Comma))
-                    .Select(nums => Expression.Constant(new List<decimal>(nums), typeof(List<decimal>)));
+                    .Select(nums => nullable
+                        ? Expression.Constant(new List<decimal?>(nums.Cast<decimal?>()), typeof(List<decimal?>))
+                        : Expression.Constant(new List<decimal>(nums), typeof(List<decimal>)));
 
-            public static TokenListParser<FilterExpressionToken, ConstantExpression> DateTimes =
+            public static TokenListParser<FilterExpressionToken, ConstantExpression> DateTimes(bool nullable = false) =>
                 Token.EqualTo(FilterExpressionToken.DateTime)
                     .Select(span => DateTime.Parse(span.ToStringValue()))
                     .AtLeastOnceDelimitedBy(Token.EqualTo(FilterExpressionToken.Comma))
-                    .Select(dateTimes => Expression.Constant(new List<DateTime>(dateTimes), typeof(List<DateTime>)));
+                    .Select(dateTimes => nullable
+                        ? Expression.Constant(new List<DateTime?>(dateTimes.Cast<DateTime?>()), typeof(List<DateTime?>))
+                        : Expression.Constant(new List<DateTime>(dateTimes), typeof(List<DateTime>)));
         }
 
         private static class Strings
@@ -89,7 +95,7 @@ namespace Guidelines.RestApi.Collections.Filtering
                 from methodName in Token.EqualTo(func).Value(s_stringFunctions[func])
                 from lparen in Token.EqualTo(FilterExpressionToken.LParen)
                 from prop in Property(obj)
-                from constant in Token.EqualTo(FilterExpressionToken.Comma).IgnoreThen(Constant)
+                from constant in Token.EqualTo(FilterExpressionToken.Comma).IgnoreThen(Constant(prop.IsNullOrNullable()))
                 from rparen in Token.EqualTo(FilterExpressionToken.RParen)
                 select (Expression)Expression.Call(prop, typeof(string).GetMethod(methodName, new[] { typeof(string) })!, constant);
 
@@ -101,7 +107,7 @@ namespace Guidelines.RestApi.Collections.Filtering
 
             public static TokenListParser<FilterExpressionToken, Expression> Contains(Expression obj)
                 => StringFunction(obj, FilterExpressionToken.Contains);
-            
+
             public static TokenListParser<FilterExpressionToken, Expression> IndexOf(Expression obj)
                 => StringFunction(obj, FilterExpressionToken.IndexOf);
 
@@ -113,24 +119,24 @@ namespace Guidelines.RestApi.Collections.Filtering
                 select (Expression)Expression.Property(prop, "Length");
         }
 
-        private static TokenListParser<FilterExpressionToken, ConstantExpression> Constant =
+        private static TokenListParser<FilterExpressionToken, ConstantExpression> Constant(bool nullable = false) =>
             (from lparen in Token.EqualTo(FilterExpressionToken.LParen)
-             from elements in List.Integers.Or(List.Strings).Or(List.Decimals).Or(List.DateTimes)
+             from list in List.Integers(nullable).Or(List.Strings).Or(List.Decimals(nullable)).Or(List.DateTimes(nullable))
              from rparen in Token.EqualTo(FilterExpressionToken.RParen)
-             select elements)
+             select list)
             .Or(Token.EqualTo(FilterExpressionToken.String)
                 .Apply(QuotedString.SqlStyle)
                 .Select(str => Expression.Constant(str, typeof(string))))
             .Or(Token.EqualTo(FilterExpressionToken.Integer)
                 .Apply(Numerics.IntegerInt32)
-                .Select(num => Expression.Constant(num, typeof(int))))
+                .Select(num => Expression.Constant(num, nullable ? typeof(int?) : typeof(int))))
             .Or(Token.EqualTo(FilterExpressionToken.Decimal)
                 .Apply(Numerics.DecimalDecimal)
-                .Select(num => Expression.Constant(num, typeof(decimal))))
+                .Select(num => Expression.Constant(num, nullable ? typeof(decimal?) : typeof(decimal))))
             .Or(Token.EqualTo(FilterExpressionToken.DateTime)
-                .Select(dateTime => Expression.Constant(DateTime.Parse(dateTime.ToStringValue()), typeof(DateTime))))
-            .Or(Token.EqualTo(FilterExpressionToken.True).Value(Expression.Constant(true, typeof(bool))))
-            .Or(Token.EqualTo(FilterExpressionToken.False).Value(Expression.Constant(false, typeof(bool))))
+                .Select(dateTime => Expression.Constant(DateTime.Parse(dateTime.ToStringValue()), nullable ? typeof(DateTime?) : typeof(DateTime))))
+            .Or(Token.EqualTo(FilterExpressionToken.True).Value(Expression.Constant(true, nullable ? typeof(bool?) : typeof(bool))))
+            .Or(Token.EqualTo(FilterExpressionToken.False).Value(Expression.Constant(false, nullable ? typeof(bool?) : typeof(bool))))
             .Or(Token.EqualTo(FilterExpressionToken.Null).Value(Expression.Constant(null)));
 
         private static TokenListParser<FilterExpressionToken, Expression> Factor(Expression obj) =>
@@ -138,7 +144,7 @@ namespace Guidelines.RestApi.Collections.Filtering
              from expr in Parse.Ref(() => Expr(obj))
              from rparen in Token.EqualTo(FilterExpressionToken.RParen)
              select expr)
-            .Or(Constant.Select(constant => (Expression)constant))
+            .Or(Constant().Select(constant => (Expression)constant))
             .Or(Operand(obj));
 
         private static TokenListParser<FilterExpressionToken, Expression> Comparison(Expression obj) =>

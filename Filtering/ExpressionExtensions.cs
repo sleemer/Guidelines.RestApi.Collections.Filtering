@@ -19,7 +19,7 @@ namespace Guidelines.RestApi.Collections.Filtering
             return Expression.MakeBinary(binaryType, left, right);
         }
 
-        private static bool IsNullOrNullable(this Expression expression) 
+        public static bool IsNullOrNullable(this Expression expression) 
             => (expression is ConstantExpression constantExpression && constantExpression.Value == null)
             || (expression.Type.IsGenericType && expression.Type.GetGenericTypeDefinition() == typeof(Nullable<>));
     }

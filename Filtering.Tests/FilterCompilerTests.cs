@@ -84,7 +84,7 @@ namespace Guidelines.RestApi.Collections.Filtering
                 yield return new object[] { "Title in ('Some', 'Title')", new Item { Title = "Title" }, true };
                 yield return new object[] { "not indexof(Title, 'Tit') eq -1", new Item { Title = "Some Title" }, true };
                 yield return new object[] { "not indexof(Title, 'Tit') eq -1 and Value gt 4", new Item { Title = "Some Title", Value = 5 }, true };
-                yield return new object[] { "length(Title) gt 5 and contains(Title, 'tle')", new Item { Title = "Some Title" }, true };
+                yield return new object[] { "(length(Title) gt 5 and contains(Title, 'tle')) or Value in (3.0,5.0)", new Item { Title = "Some Title", Value = 3 }, true };
                 yield return new object[] { "not indexof(Title, 'Tit') eq -1 or Value le 4", new Item { Title = "Some Title", Value = 5 }, true };
             }
 
